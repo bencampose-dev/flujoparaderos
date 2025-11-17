@@ -1,4 +1,4 @@
-import { Component, ChangeDetectionStrategy, input, output, viewChild, ElementRef, effect, OnDestroy } from '@angular/core';
+import { Component, ChangeDetectionStrategy, input, output, viewChild, ElementRef, effect, OnDestroy, AfterViewInit } from '@angular/core';
 import { StopData, Bus } from '../../services/iot-data.service';
 
 declare var L: any; // Use a global L from the Leaflet CDN script
@@ -8,7 +8,7 @@ declare var L: any; // Use a global L from the Leaflet CDN script
   template: `<div #mapContainer class="w-full h-full rounded-xl border border-gray-700"></div>`,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class MapComponent implements OnDestroy {
+export class MapComponent implements OnDestroy, AfterViewInit {
   stops = input.required<StopData[]>();
   buses = input.required<Bus[]>();
   selectedStopId = input.required<string | null>();
@@ -35,6 +35,11 @@ export class MapComponent implements OnDestroy {
   
   ngAfterViewInit(): void {
     this.initMap();
+    // Use a timeout to ensure the map container has been sized by the browser's layout engine.
+    // This fixes the common Leaflet issue where only part of the map is rendered.
+    setTimeout(() => {
+        this.map?.invalidateSize();
+    }, 100);
   }
 
   ngOnDestroy(): void {
@@ -46,7 +51,7 @@ export class MapComponent implements OnDestroy {
   private initMap(): void {
     this.map = L.map(this.mapContainer().nativeElement, {
         center: [-33.4567, -70.6789], // Center on Santiago initially
-        zoom: 8,
+        zoom: 13,
         zoomControl: false,
     });
 
