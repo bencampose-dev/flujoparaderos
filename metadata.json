@@ -1,0 +1,5 @@
+{
+  "name": "IoT People Flow Dashboard",
+  "description": "A modern, real-time dashboard to monitor and analyze the flow of people at a bus stop, providing key metrics and visual data representation.",
+  "requestFramePermissions": []
+}

@@ -1,0 +1,69 @@
+<div class="min-h-screen flex flex-col">
+  <app-header [address]="address()"></app-header>
+  
+  <main class="flex-grow p-4 sm:p-6 lg:p-8">
+    <div class="container mx-auto">
+
+      <!-- Stop Selector -->
+      <app-stop-selector 
+        [stops]="allStops()" 
+        [selectedStopId]="selectedStopId()"
+        (stopSelected)="onStopSelected($event)">
+      </app-stop-selector>
+      
+      <!-- Main Dashboard Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- Left Column: KPIs & Rankings -->
+        <aside class="lg:col-span-3 flex flex-col gap-6">
+          <!-- Metrics -->
+          @for (metric of dashboardMetrics(); track metric.title) {
+            <app-metric-card 
+              [title]="metric.title" 
+              [value]="metric.value"
+              [icon]="metric.icon"
+              [colorClass]="metric.color"
+              [change]="metric.change">
+            </app-metric-card>
+          }
+          
+          <!-- Rankings -->
+          <app-ranking-list [stops]="allStops()"></app-ranking-list>
+        </aside>
+
+        <!-- Center Column: Map & Chart -->
+        <div class="lg:col-span-6 flex flex-col gap-6">
+          <app-map 
+            class="h-[28rem] lg:h-[32rem]"
+            [stops]="allStops()"
+            [buses]="allBuses()"
+            [selectedStopId]="selectedStopId()"
+            (stopSelected)="onStopSelected($event)">
+          </app-map>
+          <app-flow-chart class="h-[28rem]" [data]="flowHistory()"></app-flow-chart>
+        </div>
+
+        <!-- Right Column: ETA & AI Insights -->
+        <aside class="lg:col-span-3 flex flex-col gap-6">
+          <app-bus-eta [etaMinutes]="eta()" (viewCameras)="showCameras.set(true)"></app-bus-eta>
+          <app-ai-insights [insight]="aiInsight()"></app-ai-insights>
+        </aside>
+
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Camera Modal -->
+@if (showCameras()) {
+  <div class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4" (click)="showCameras.set(false)">
+    <div class="w-full max-w-3xl bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl" (click)="$event.stopPropagation()">
+      <app-camera-feed [cameras]="cameras()"></app-camera-feed>
+      <button (click)="showCameras.set(false)" class="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+  </div>
+}
