@@ -1,10 +1,5 @@
 import { Injectable, signal, computed } from '@angular/core';
 
-export interface FlowData {
-  timestamp: Date;
-  count: number;
-}
-
 export interface Camera {
   cameraId: string;
   status: 'online' | 'offline';
@@ -46,7 +41,11 @@ export interface StopData {
   }
 }
 
-const MAX_DATA_POINTS = 50;
+// FIX: Added missing FlowData interface used by FlowChartComponent.
+export interface FlowData {
+  timestamp: Date;
+  count: number;
+}
 
 @Injectable({
   providedIn: 'root',
@@ -61,8 +60,6 @@ export class IotDataService {
   private _aiInsight = signal<AiInsight | null>(null);
   public readonly aiInsight = this._aiInsight.asReadonly();
 
-  private _flowHistories = signal<Map<string, FlowData[]>>(new Map());
-
   private _selectedStopId = signal<string | null>(null);
   public readonly selectedStopId = this._selectedStopId.asReadonly();
 
@@ -73,30 +70,37 @@ export class IotDataService {
     return allData.find(stop => stop.stopId === selectedId) ?? null;
   });
 
-  public readonly flowHistory = computed(() => {
-    const selectedId = this._selectedStopId();
-    const histories = this._flowHistories();
-    if (!selectedId) return [];
-    return histories.get(selectedId) || [];
-  });
-
   private stopDefinitions = [
-    { stopId: "stop-g4a1k", address: "Av. Principal 123, Santiago", lat: -33.4567, lng: -70.6789 },
-    { stopId: "stop-b2c3d", address: "Calle Central 456, Valparaíso", lat: -33.0458, lng: -71.6197 },
-    { stopId: "stop-f9h8j", address: "Plaza de Armas 789, Concepción", lat: -36.8269, lng: -73.0498 }
+    // Ruta Providencia (5 paradas)
+    { stopId: "stop-prov-1", address: "Metro Tobalaba, Providencia", lat: -33.4180, lng: -70.5985 },
+    { stopId: "stop-prov-2", address: "Metro Los Leones, Providencia", lat: -33.4215, lng: -70.6080 },
+    { stopId: "stop-prov-3", address: "Metro Pedro de Valdivia", lat: -33.4248, lng: -70.6160 },
+    { stopId: "stop-prov-4", address: "Metro Manuel Montt", lat: -33.4285, lng: -70.6245 },
+    { stopId: "stop-prov-5", address: "Metro Salvador", lat: -33.4318, lng: -70.6310 },
+
+    // Otras paradas en Santiago
+    { stopId: "stop-stgo-1", address: "Plaza de Armas, Santiago", lat: -33.4379, lng: -70.6505 },
+    { stopId: "stop-stgo-2", address: "Parque O'Higgins", lat: -33.4650, lng: -70.6580 },
+    { stopId: "stop-stgo-3", address: "Metro La Cisterna", lat: -33.5350, lng: -70.6610 },
   ];
   
-  // Simple bus route simulation
-  // Fix: The stopDefinitions objects contain lat/lng directly, not within a 'location' property.
-  private busRoutes = {
-      'R1': [this.stopDefinitions[0], this.stopDefinitions[1], this.stopDefinitions[0]],
-      'R2': [this.stopDefinitions[1], this.stopDefinitions[2], this.stopDefinitions[1]],
+  private busRoutes: { [key: string]: string[] } = {
+    'R1': ["stop-prov-1", "stop-prov-2", "stop-prov-3", "stop-prov-4", "stop-prov-5"],
   };
   
+  public readonly busRouteCoordinates = computed(() => {
+    const stopsMap = new Map(this.stopDefinitions.map(s => [s.stopId, {lat: s.lat, lng: s.lng}]));
+    return Object.entries(this.busRoutes).map(([routeId, stopIds]) => {
+      const coordinates = stopIds
+        .map(stopId => stopsMap.get(stopId))
+        .filter((coord): coord is {lat: number, lng: number} => coord !== undefined);
+      return { routeId, coordinates };
+    });
+  });
+
   private busState = [
       { busId: 'bus-01', routeId: 'R1', progress: 0, segment: 0 },
-      { busId: 'bus-02', routeId: 'R1', progress: 0.5, segment: 0 },
-      { busId: 'bus-03', routeId: 'R2', progress: 0.2, segment: 0 },
+      { busId: 'bus-02', routeId: 'R1', progress: 0.5, segment: 2 },
   ];
 
   constructor() {
@@ -122,23 +126,6 @@ export class IotDataService {
       if (!this._selectedStopId() && allStops.length > 0) {
         this._selectedStopId.set(allStops[0].stopId);
       }
-
-      this._flowHistories.update(currentHistories => {
-        allStops.forEach(stopData => {
-          const history = currentHistories.get(stopData.stopId) || [];
-          const newFlowData: FlowData = {
-            timestamp: new Date(stopData.timestamp),
-            count: stopData.personCount
-          };
-          const updatedHistory = [...history, newFlowData];
-          if (updatedHistory.length > MAX_DATA_POINTS) {
-            currentHistories.set(stopData.stopId, updatedHistory.slice(-MAX_DATA_POINTS));
-          } else {
-            currentHistories.set(stopData.stopId, updatedHistory);
-          }
-        });
-        return new Map(currentHistories);
-      });
 
     } catch (error) {
       console.error("Failed to fetch IoT data:", error);
@@ -176,19 +163,28 @@ export class IotDataService {
       const speed = 0.05; // progress per fetch
       this.busState.forEach(bus => {
           bus.progress += speed;
-          const route = this.busRoutes[bus.routeId as 'R1' | 'R2'];
+          const routeStops = this.busRoutes[bus.routeId];
           if (bus.progress >= 1) {
               bus.progress = 0;
-              bus.segment = (bus.segment + 1) % (route.length -1);
+              bus.segment = (bus.segment + 1) % (routeStops.length - 1);
           }
       });
   }
 
   private getMockBusesData(): Bus[] {
+      const stopsMap = new Map(this.stopDefinitions.map(s => [s.stopId, s]));
       return this.busState.map(bus => {
-          const route = this.busRoutes[bus.routeId as 'R1' | 'R2'];
-          const start = route[bus.segment];
-          const end = route[bus.segment + 1];
+          const routeStopIds = this.busRoutes[bus.routeId];
+          const startStopId = routeStopIds[bus.segment];
+          const endStopId = routeStopIds[bus.segment + 1];
+          
+          const start = stopsMap.get(startStopId);
+          const end = stopsMap.get(endStopId);
+
+          if (!start || !end) {
+              // Fallback or error, return last known good location if any
+              return { busId: bus.busId, routeId: bus.routeId, location: { lat: 0, lng: 0 }};
+          }
 
           // Linear interpolation for bus position
           const lat = start.lat + (end.lat - start.lat) * bus.progress;

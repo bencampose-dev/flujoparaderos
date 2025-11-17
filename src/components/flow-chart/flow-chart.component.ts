@@ -19,14 +19,15 @@ declare var d3: any;
 })
 export class FlowChartComponent {
   data = input.required<FlowData[]>();
-  title = input<string>('Flujo de Personas en Tiempo Real');
+  title = input<string>('Flujo de Personas (Promedio 10 min)');
   chartContainer = viewChild.required<ElementRef>('chartContainer');
 
   constructor() {
     effect(() => {
       const currentData = this.data();
       if (currentData && currentData.length > 1 && this.chartContainer()) {
-        this.drawChart(currentData);
+        const aggregatedData = this.aggregateDataByInterval(currentData, 10);
+        this.drawChart(aggregatedData);
       }
     }, { allowSignalWrites: true });
   }
@@ -34,16 +35,50 @@ export class FlowChartComponent {
   onResize(): void {
     const currentData = this.data();
     if (currentData && currentData.length > 1 && this.chartContainer()) {
-      this.drawChart(currentData);
+      const aggregatedData = this.aggregateDataByInterval(currentData, 10);
+      this.drawChart(aggregatedData);
     }
   }
 
+  private aggregateDataByInterval(data: FlowData[], intervalMinutes: number): FlowData[] {
+    if (!data || data.length === 0) {
+      return [];
+    }
+
+    const buckets = new Map<number, { sum: number; countOfItems: number }>();
+    const intervalMs = intervalMinutes * 60 * 1000;
+
+    for (const d of data) {
+      const timestamp = d.timestamp.getTime();
+      const intervalStart = Math.floor(timestamp / intervalMs) * intervalMs;
+      
+      const bucket = buckets.get(intervalStart);
+      if (bucket) {
+        bucket.sum += d.count;
+        bucket.countOfItems += 1;
+      } else {
+        buckets.set(intervalStart, { sum: d.count, countOfItems: 1 });
+      }
+    }
+
+    const aggregatedData: FlowData[] = [];
+    for (const [timestamp, { sum, countOfItems }] of buckets.entries()) {
+      aggregatedData.push({
+        timestamp: new Date(timestamp),
+        count: Math.round(sum / countOfItems),
+      });
+    }
+
+    return aggregatedData.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+  }
+
   private drawChart(data: FlowData[]): void {
+    if (data.length < 2) return;
     const element = this.chartContainer().nativeElement;
     d3.select(element).select('svg').remove();
     d3.select(element).select('.flow-tooltip').remove();
 
-    const margin = { top: 20, right: 20, bottom: 30, left: 20 };
+    const margin = { top: 20, right: 20, bottom: 30, left: 40 };
     const width = element.offsetWidth - margin.left - margin.right;
     const height = element.offsetHeight - margin.top - margin.bottom;
 
@@ -88,13 +123,16 @@ export class FlowChartComponent {
 
     svg.append('g')
       .attr('class', 'grid')
-      .call(d3.axisLeft(y).ticks(5).tickSize(-width).tickFormat(() => ''))
+      .call(d3.axisLeft(y).ticks(5).tickSize(-width))
       .call((g: any) => g.select(".domain").remove())
-      .call((g: any) => g.selectAll('line')
+      .call((g: any) => g.selectAll('.tick line')
         .attr('stroke', '#4b5563')
-        .attr('stroke-opacity', 0.2));
+        .attr('stroke-opacity', 0.2))
+      .call((g: any) => g.selectAll('.tick text')
+        .attr('fill', '#9ca3af')
+        .attr('x', -10)
+        .style('font-size', '12px'));
 
-    // FIX: Untyped function calls may not accept type arguments.
     const area = d3.area()
       .x((d: any) => x(d.timestamp))
       .y0(height)
@@ -105,7 +143,6 @@ export class FlowChartComponent {
       .attr('fill', 'url(#flowGradient)')
       .attr('d', area);
 
-    // FIX: Untyped function calls may not accept type arguments.
     const line = d3.line()
       .x((d: any) => x(d.timestamp))
       .y((d: any) => y(d.count))
@@ -167,10 +204,10 @@ export class FlowChartComponent {
         
         focus.attr('transform', `translate(${x(d.timestamp)},${y(d.count)})`);
         
-        const timeFormat = d3.timeFormat("%H:%M:%S");
+        const timeFormat = d3.timeFormat("%H:%M");
         tooltip.html(
-          `<div class="font-bold text-center text-white">${d.count} Personas</div>` +
-          `<div class="text-gray-400 text-center">${timeFormat(d.timestamp)}</div>`
+          `<div class="font-bold text-center text-white">${d.count} Personas (Promedio)</div>` +
+          `<div class="text-gray-400 text-center">Intervalo de ${timeFormat(d.timestamp)}</div>`
         );
 
         const tooltipX = x(d.timestamp) + margin.left;

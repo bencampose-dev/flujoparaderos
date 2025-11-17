@@ -16,7 +16,10 @@ import { StopData } from '../../services/iot-data.service';
                 <p class="text-xs text-gray-400">Nivel: <span class="font-bold uppercase">{{ stop.status }}</span></p>
               </div>
             </div>
-            <div class="text-lg font-bold text-white">{{ stop.personCount }}</div>
+            <div class="flex flex-col items-end">
+              <span class="text-lg font-bold text-white">{{ stop.personCount }}</span>
+              <span class="text-xs text-gray-400 -mt-1">personas</span>
+            </div>
           </div>
         }
       </div>

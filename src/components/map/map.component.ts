@@ -3,6 +3,11 @@ import { StopData, Bus } from '../../services/iot-data.service';
 
 declare var L: any; // Use a global L from the Leaflet CDN script
 
+export interface BusRoute {
+  routeId: string;
+  coordinates: { lat: number; lng: number }[];
+}
+
 @Component({
   selector: 'app-map',
   template: `<div #mapContainer class="w-full h-full rounded-xl border border-gray-700"></div>`,
@@ -11,6 +16,7 @@ declare var L: any; // Use a global L from the Leaflet CDN script
 export class MapComponent implements OnDestroy, AfterViewInit {
   stops = input.required<StopData[]>();
   buses = input.required<Bus[]>();
+  routes = input<BusRoute[]>([]);
   selectedStopId = input.required<string | null>();
   stopSelected = output<string>();
 
@@ -19,6 +25,7 @@ export class MapComponent implements OnDestroy, AfterViewInit {
   private map: any;
   private stopMarkers = new Map<string, any>();
   private busMarkers = new Map<string, any>();
+  private routeLayers = new Map<string, any>();
 
   private busIcon = L.divIcon({
       html: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6 text-white"><path d="M12 24a12 12 0 0 1-12-12 12 12 0 0 1 12-12 12 12 0 0 1 12 12 12 12 0 0 1-12 12zM18.1 13.94a.5.5 0 0 0-.5-.44H6.4a.5.5 0 0 0-.5.44l-1.12 4.46a.5.5 0 0 0 .44.56h1.36a.5.5 0 0 0 .5-.44l.36-1.44h10.12l.36 1.44a.5.5 0 0 0 .5.44h1.36a.5.5 0 0 0 .44-.56zM8.5 16a1 1 0 1 1 0-2 1 1 0 0 1 0 2zm7 0a1 1 0 1 1 0-2 1 1 0 0 1 0 2zM18 10.5a.5.5 0 0 0-.5-.5H6.5a.5.5 0 0 0-.5.5v2h12zM17 4H7a2 2 0 0 0-2 2v3h14V6a2 2 0 0 0-2-2z"/></svg>`,
@@ -30,6 +37,7 @@ export class MapComponent implements OnDestroy, AfterViewInit {
   constructor() {
     effect(() => this.updateStopMarkers(), { allowSignalWrites: true });
     effect(() => this.updateBusMarkers());
+    effect(() => this.updateRoutes());
     effect(() => this.updateSelectedStopView());
   }
   
@@ -65,6 +73,8 @@ export class MapComponent implements OnDestroy, AfterViewInit {
   private updateStopMarkers(): void {
     if (!this.map) return;
     const stopsData = this.stops();
+    const currentStopIds = new Set(stopsData.map(s => s.stopId));
+
     stopsData.forEach(stop => {
       const { lat, lng } = stop.location;
       
@@ -86,6 +96,14 @@ export class MapComponent implements OnDestroy, AfterViewInit {
         marker.on('click', () => this.stopSelected.emit(stop.stopId));
         this.stopMarkers.set(stop.stopId, marker);
       }
+    });
+
+    // Remove old markers if stops are removed dynamically
+    this.stopMarkers.forEach((marker, stopId) => {
+        if (!currentStopIds.has(stopId)) {
+            this.map.removeLayer(marker);
+            this.stopMarkers.delete(stopId);
+        }
     });
   }
   
@@ -112,6 +130,37 @@ export class MapComponent implements OnDestroy, AfterViewInit {
             this.map.removeLayer(marker);
             this.busMarkers.delete(busId);
         }
+    });
+  }
+
+  private updateRoutes(): void {
+    if (!this.map) return;
+    const routesData = this.routes();
+    const currentRouteIds = new Set(routesData.map(r => r.routeId));
+
+    // Remove old polylines
+    this.routeLayers.forEach((layer, routeId) => {
+      if (!currentRouteIds.has(routeId)) {
+        this.map.removeLayer(layer);
+        this.routeLayers.delete(routeId);
+      }
+    });
+
+    // Add new or update existing polylines
+    routesData.forEach(route => {
+      const latLngs = route.coordinates.map(c => [c.lat, c.lng]);
+      let polyline = this.routeLayers.get(route.routeId);
+      if (polyline) {
+        polyline.setLatLngs(latLngs);
+      } else {
+        polyline = L.polyline(latLngs, {
+          color: '#38bdf8', // sky-400
+          weight: 3,
+          opacity: 0.7,
+          dashArray: '5, 10'
+        }).addTo(this.map);
+        this.routeLayers.set(route.routeId, polyline);
+      }
     });
   }
 

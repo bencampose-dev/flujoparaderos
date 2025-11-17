@@ -4,7 +4,6 @@ import { IotDataService } from './services/iot-data.service';
 // New Components
 import { HeaderComponent } from './components/header/header.component';
 import { MetricCardComponent } from './components/metric-card/metric-card.component';
-import { FlowChartComponent } from './components/flow-chart/flow-chart.component';
 import { StopSelectorComponent } from './components/stop-selector/stop-selector.component';
 import { CameraFeedComponent } from './components/camera-feed/camera-feed.component';
 import { MapComponent } from './components/map/map.component';
@@ -27,7 +26,6 @@ interface Metric {
   imports: [
     HeaderComponent, 
     MetricCardComponent, 
-    FlowChartComponent, 
     CameraFeedComponent,
     StopSelectorComponent,
     MapComponent,
@@ -41,11 +39,11 @@ export class AppComponent {
   
   allStops = this.iotDataService.allStopsData;
   allBuses = this.iotDataService.allBusesData;
+  busRoutes = this.iotDataService.busRouteCoordinates;
   aiInsight = this.iotDataService.aiInsight;
   selectedStopId = this.iotDataService.selectedStopId;
 
   latestData = this.iotDataService.latestStopData;
-  flowHistory = this.iotDataService.flowHistory;
   
   address = computed(() => this.latestData()?.location.address);
   cameras = computed(() => this.latestData()?.cameras);

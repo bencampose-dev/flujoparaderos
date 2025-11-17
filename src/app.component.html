@@ -31,16 +31,16 @@
           <app-ranking-list [stops]="allStops()"></app-ranking-list>
         </aside>
 
-        <!-- Center Column: Map & Chart -->
-        <div class="lg:col-span-6 flex flex-col gap-6">
+        <!-- Center Column: Map -->
+        <div class="lg:col-span-6">
           <app-map 
-            class="h-[28rem] lg:h-[32rem]"
+            class="h-[40rem] lg:h-full"
             [stops]="allStops()"
             [buses]="allBuses()"
+            [routes]="busRoutes()"
             [selectedStopId]="selectedStopId()"
             (stopSelected)="onStopSelected($event)">
           </app-map>
-          <app-flow-chart class="h-[28rem]" [data]="flowHistory()"></app-flow-chart>
         </div>
 
         <!-- Right Column: ETA & AI Insights -->
